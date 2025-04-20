@@ -1,5 +1,5 @@
 # Delivery Cost Optimization – Case Competition Project
-Project Summary & Business Objective
+### Project Summary & Business Objective
 In this case competition, our goal was to analyze delivery cost data and uncover actionable insights to support cost optimization and operational efficiency. The primary business problem centered around high variability in delivery expenses across product types, business segments, and volume ranges. Our objective was to develop data-driven recommendations that would reduce delivery costs while maintaining service levels.
 
 # Group’s Solution
