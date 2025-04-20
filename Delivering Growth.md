@@ -1,4 +1,5 @@
 ## Delivery Cost Optimization – Case Competition Project
+[View my segmentation + delivery cost notebook](https://github.com/jocelynchang21/Capstone-Proejct/blob/main/segmentation%20%2B%20delivery%20cost.Rmd)
 
 ### Project Summary & Business Objective
 
