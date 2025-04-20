@@ -1,62 +1,65 @@
-# Delivery Cost Optimization – Case Competition Project
+## Delivery Cost Optimization – Case Competition Project
+
 ### Project Summary & Business Objective
-In this case competition, our goal was to analyze delivery cost data and uncover actionable insights to support cost optimization and operational efficiency. The primary business problem centered around high variability in delivery expenses across product types, business segments, and volume ranges. Our objective was to develop data-driven recommendations that would reduce delivery costs while maintaining service levels.
 
-# Group’s Solution
-Our team cleaned and explored the dataset using EDA techniques to uncover key patterns, including cost discrepancies across ZIP codes and product categories. We then applied predictive modeling approaches—such as ARIMA for forecasting and XGBoost for classification—to estimate future delivery trends and pinpoint cost drivers. We visualized these results in an interactive map showing sales distribution by ZIP code, enabling targeted cost-saving strategies.
+In this case competition, our goal was to analyze delivery cost data and uncover actionable insights to support cost optimization and operational efficiency. The business challenge focused on the high variability in delivery expenses across product types, business segments, and volume ranges. The objective was to develop data-driven recommendations to reduce delivery costs while maintaining service levels and ensuring customer satisfaction.
 
-### Key deliverables:
+## Group Solution
 
-Cleaned dataset (excluded from repo per policy)
+Our team cleaned and explored the dataset using exploratory data analysis to uncover key patterns, including cost discrepancies across ZIP codes and product categories. We applied ARIMA for time series forecasting and XGBoost for cost prediction. Results were visualized in an interactive ZIP code-level map to support targeted logistics and pricing strategies.
 
+### Key Deliverables:
+Cleaned dataset (excluded per data policy)
 ARIMA forecasts of delivery trends
+XGBoost model for cost prediction
+Interactive sales map by ZIP code
+Business recommendations for reducing delivery expenses and enhancing operational efficiency
 
-XGBoost models for cost prediction
+## My Individual Contribution
 
-Interactive map of sales by ZIP code
-
-Business recommendations for optimization
-
-# My Individual Contribution
 ### As part of this project, I focused on:
 
-Cleaning and preprocessing the raw delivery data
+- **Data Cleaning & Preprocessing**: Addressed incomplete entries, standardized formats, and handled negative or missing values to ensure robust model performance.
 
-Conducting in-depth Exploratory Data Analysis (EDA) to identify key drivers of cost
+- **Exploratory Data Analysis (EDA):** Investigated key drivers of delivery cost, identifying ZIP codes and product categories contributing to inefficiencies.
 
-Implementing XGBoost to model cost prediction and validate results with cross-validation
+- **Predictive Modeling:** Implemented and validated XGBoost for cost prediction using cross-validation techniques.
 
-Building an interactive sales map by ZIP code to visually support our findings
+- **Interactive Visualization:** Developed an interactive map of sales by ZIP code to support regional decision-making.
 
-Presenting our key takeaways and business recommendations in a clear and engaging format
 
-# Business Value of Our Solution
-### Our analysis empowers stakeholders to:
+- **Business Communication:** Synthesized findings into strategic recommendations and presented results to stakeholders in a clear and impactful format.
 
-Identify ZIP codes and business segments with disproportionately high delivery costs
+## Business Value of the Solution
 
-Forecast delivery expense trends for better financial planning
+### Our analysis empowers Swire Coca-Cola stakeholders to:
 
-Optimize pricing and logistics strategies based on model-driven insights
+- **Identify Cost Inefficiencies:** Pinpoint ZIP codes and segments with high delivery costs to target with optimization strategies.
 
-Make data-informed decisions to streamline delivery operations and enhance profitability
+- **Forecast Demand More Accurately:** ARIMA and SVR models improve planning by identifying seasonality and trends.
 
-# Challenges Faced
-### Some challenges we encountered included:
+- **Enhance Operational Planning:** Refine inventory and logistics processes to reduce delivery delays and excess stock.
 
-Incomplete or inconsistent data entries that required extensive cleaning
+- **Drive Market Expansion:** Use regional insights from SVR and customer segmentation to identify high-potential markets for growth.
 
-Limited historical data for certain product categories, affecting model reliability
+- **Increase Profitability:** Reduce costs through logistics optimization and improve service levels, ultimately enhancing customer satisfaction.
 
-Difficulty in aligning technical findings with non-technical business implications
+## Challenges Faced
 
-# What I Learned?
-### This project deepened my experience in:
+- **Data Quality:** Inconsistent or missing values, particularly in delivered_cases, required intensive preprocessing.
 
-Applying machine learning models (ARIMA, XGBoost) to real business problems
+- **Data Sparsity:** Limited historical data for some products and regions reduced modeling confidence.
 
-Communicating technical insights through compelling visualizations and presentations
+- **Business Alignment:** Translating technical findings into meaningful business recommendations required iterative refinement and collaboration.
 
-Collaborating within a team to drive actionable outcomes
+## What I Learned
 
-Translating data findings into concrete business recommendations
+### This project enhanced my skills in:
+
+- **Machine Learning & Forecasting:** Applied XGBoost and SVR in a real-world logistics setting.
+
+- **Data Storytelling:** Communicated technical insights effectively through visuals and stakeholder presentations.
+
+- **Team Collaboration:** Coordinated with peers across modeling, business, and visualization tasks to deliver a unified solution.
+
+- **Strategic Thinking:** Learned how to align analytics with business objectives for maximum impact.
