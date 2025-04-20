@@ -1,0 +1,881 @@
+---
+title: "Customer Segmentation"
+author: "Estefany Alvarado"
+date: "March 05, 2025"
+output: 
+  html_document:
+    number_sections: yes
+    toc: yes
+editor_options: 
+  chunk_output_type: inline
+  markdown: 
+    wrap: 72
+---
+
+## Install and Load Necessary Packages
+```{r, message=FALSE, warning=FALSE}
+install.packages("corrr")
+# Load libraries
+library(tidyverse)
+library(readr)
+library(readxl)
+library(skimr)
+library(janitor)
+library(dplyr)
+library(corrr)
+library(ggcorrplot)
+library(car)
+library(plotly)
+library(lubridate)
+library(shiny)
+library(scales)
+library(e1071)
+```
+
+```{r}
+# Load datasets
+transactional_data <- read_csv("~/Downloads/capstone_datasets/transactional_data.csv")
+customer_address_and_zip_mapping <- read_csv("~/Downloads/capstone_datasets/Cleaned_Customer_Address_Dataset.csv")
+customer_profile <- read_csv("~/Downloads/capstone_datasets/customer_profile.csv")
+delivery_cost_data <- read_excel("~/Downloads/capstone_datasets/delivery_cost_data.xlsx")
+
+
+# Convert all column names to lowercase
+colnames(transactional_data) <- tolower(colnames(transactional_data))
+colnames(customer_address_and_zip_mapping) <- tolower(colnames(customer_address_and_zip_mapping))
+colnames(customer_profile) <- tolower(colnames(customer_profile))
+colnames(delivery_cost_data) <- tolower(colnames(delivery_cost_data))
+```
+```{r}
+summary(delivery_cost_data)
+```
+
+```{r}
+# Convert selected variables to categorical (factor) and date
+customer_profile <- customer_profile %>%
+  mutate(
+    zip_code = as.factor(zip_code),
+    customer_number = as.factor(customer_number),
+    primary_group_number = as.factor(primary_group_number),
+    first_delivery_date = as.Date(first_delivery_date, format = "%m/%d/%Y"),
+    on_boarding_date = as.Date(on_boarding_date, format = "%m/%d/%Y")
+  )
+
+customer_address_and_zip_mapping <- customer_address_and_zip_mapping %>%
+  mutate(zip = as.factor(zip))
+
+transactional_data <- transactional_data %>%
+  mutate(customer_number = as.factor(customer_number))
+
+# Convert selected character variables to factor
+customer_profile <- customer_profile %>%
+  mutate(
+    frequent_order_type = as.factor(frequent_order_type),
+    cold_drink_channel = as.factor(cold_drink_channel),
+    trade_channel = as.factor(trade_channel),
+    sub_trade_channel = as.factor(sub_trade_channel)
+  )
+
+transactional_data <- transactional_data %>%
+  mutate(order_type = as.factor(order_type),
+    transaction_date = as.Date(transaction_date, format = "%m/%d/%Y"))
+
+delivery_cost_data <- delivery_cost_data %>%
+  mutate(
+    `cold drink channel` = as.factor(`cold drink channel`),
+    `vol range` = as.factor(`vol range`),
+    `applicable to` = as.factor(`applicable to`),
+    `cost type` = as.factor(`cost type`)
+  )
+
+# (Optional) Quick structure check
+str(customer_profile)
+str(customer_address_and_zip_mapping)
+str(transactional_data)
+str(delivery_cost_data)
+```
+```{r}
+# Drop highly correlated columns (Keeping only "Delivered" metrics)
+transactional_data <- transactional_data %>%
+  select(-ordered_cases, -loaded_cases, -ordered_gallons, -loaded_gallons)
+```
+
+# Step 1: Calculate annual total volume per customer
+
+
+```{r}
+## Step 1: Aggregate Total Annual Volume Per Customer
+
+customer_agg <- transactional_data %>%
+  group_by(customer_number, year) %>%
+  summarise(
+    total_delivered_cases = sum(delivered_cases, na.rm = TRUE),
+    total_delivered_gallons = sum(delivered_gallons, na.rm = TRUE),
+    total_volume = total_delivered_cases + total_delivered_gallons,
+    n_transactions = n(),
+    avg_volume_per_tx = mean(delivered_cases + delivered_gallons, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Quick preview
+head(customer_agg)
+```
+
+# Step 2: Explore Distribution of Total Volume
+
+```{r}
+## Step 2: Explore Distribution of Total Volume
+
+library(ggplot2)
+
+# Histogram
+ggplot(customer_agg, aes(x = total_volume)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "black") +
+  scale_x_continuous(labels = scales::comma) +
+  labs(title = "Distribution of Total Annual Delivered Volume (Gallons)",
+       x = "Total Delivered Volume (Cases + Gallons)",
+       y = "Number of Customers")
+
+# Boxplot
+ggplot(customer_agg, aes(y = total_volume)) +
+  geom_boxplot(fill = "orange") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Boxplot of Total Annual Delivered Volume")
+
+# Percentiles
+quantile(customer_agg$total_volume,
+         probs = c(0.25, 0.5, 0.75, 0.9, 0.95, 0.99),
+         na.rm = TRUE)
+
+# Summary
+summary(customer_agg$total_volume)
+
+```
+75% percentile = 424 gallons
+
+That means 75% of customers deliver less than 424 gallons.
+Top 25% of customers exceed 400 gallons, 75% are below.
+
+The business rule of 400 gallons is almost exactly at the 75th percentile, which seems intentional and reasonable.
+
+However:
+
+You have a small number of customers with very high volume (outliers above 100,000 gallons).
+
+Your mean is 645 gallons, which is much higher than the median (156), meaning the data is highly skewed (as shown in your histogram and boxplot).
+
+## Remove outliers
+
+A common rule is to remove customers above the 99th percentile (in your data, that's around 6,987 gallons).
+
+```{r}
+# Calculate 99th percentile
+p99 <- quantile(customer_agg$total_volume, 0.99, na.rm = TRUE)
+
+# Filter out customers above 99th percentile
+customer_agg_clean <- customer_agg %>%
+  filter(total_volume <= p99)
+
+# Check distribution again
+summary(customer_agg_clean$total_volume)
+
+```
+
+
+After cleaning the dataset by removing outliers above the 99th percentile (customers with more than ~6,977 gallons per year), we analyzed the distribution of total annual delivered volume (cases + gallons) and found the following:
+
+
+```{r}
+# Calculate percentiles for Total Volume (after cleaning outliers)
+volume_percentiles <- quantile(customer_agg_clean$total_volume,
+                               probs = c(0.25, 0.5, 0.75, 0.9, 0.95, 0.99),
+                               na.rm = TRUE)
+
+percentiles_df <- data.frame(
+  Percentile = c("25%", "50% (Median)", "75%", "90%", "95%", "99%"),
+  Value = as.numeric(volume_percentiles)
+)
+
+print(percentiles_df)
+
+# Summary Statistics Table
+summary_stats <- summary(customer_agg_clean$total_volume)
+summary_df <- data.frame(
+  Statistic = names(summary_stats),
+  Value = as.numeric(summary_stats)
+)
+
+print(summary_df)
+
+```
+
+Median = 153 gallons
+
+75th percentile = 409.5 gallons (very close to SCCU's initial 400 gallons rule)
+
+90th percentile ≈ 975 gallons
+
+
+The mean volume was around 395 gallons, confirming a right-skewed distribution with a long tail of a few very large customers.
+
+
+# Tier Definition & Reasoning
+
+```{r}
+library(knitr)
+
+# Create Tier Table
+tier_table <- data.frame(
+  Tier = c("Low Volume", "Medium Volume", "High Volume"),
+  `Volume Range (Gallons)` = c("≤ 200", "201 – 1000", "> 1000"),
+  Reason = c(
+    "Slightly above median (153 gallons), includes the lower ~55% of customers.",
+    "Captures customers between ~50th and 90th percentile. Potential growth.",
+    "Above 90th percentile. High-value customers who should remain in direct delivery."
+  )
+)
+
+# Display table
+kable(tier_table, caption = "Volume Tier Classification and Business Justification")
+
+```
+
+```{r}
+# Create Volume Tiers
+customer_agg_clean <- customer_agg_clean %>%
+  mutate(volume_tier = case_when(
+    total_volume <= 200 ~ "Low Volume",
+    total_volume > 200 & total_volume <= 1000 ~ "Medium Volume",
+    total_volume > 1000 ~ "High Volume"
+  ))
+
+# Check tier counts
+table(customer_agg_clean$volume_tier)
+
+# Percentages
+prop.table(table(customer_agg_clean$volume_tier)) * 100
+
+```
+
+```{r}
+# Summary statistics by volume tier
+library(dplyr)
+
+customer_agg_clean %>%
+  group_by(volume_tier) %>%
+  summarise(
+    n_customers = n(),
+    avg_volume = mean(total_volume, na.rm = TRUE),
+    median_volume = median(total_volume, na.rm = TRUE),
+    avg_transactions = mean(n_transactions, na.rm = TRUE)
+  )
+
+```
+
+```{r}
+library(ggplot2)
+
+# Histogram with Volume Tiers
+ggplot(customer_agg_clean, aes(x = total_volume, fill = volume_tier)) +
+  geom_histogram(bins = 50, color = "black") +
+  scale_x_continuous(labels = scales::comma) +
+  labs(title = "Customer Volume Distribution by Tier",
+       x = "Total Delivered Volume (Gallons)",
+       fill = "Volume Tier")
+
+```
+
+We propose a three-tier classification based on actual customer volume distribution: Low (≤200), Medium (201–1000), and High (>1000) gallons. This structure aligns with the key percentiles of the data, improves targeting for delivery strategies, and identifies growth opportunities.
+
+# The Volume Tier Personas
+
+```{r}
+# Merge datasets
+customer_data <- customer_agg_clean %>%
+  left_join(customer_profile, by = "customer_number") %>%
+  left_join(customer_address_and_zip_mapping, by = c("zip_code" = "zip")) %>%
+  left_join(
+    transactional_data %>%
+      group_by(customer_number) %>%
+      summarise(
+        most_common_order_type = names(sort(table(order_type), decreasing = TRUE))[1]
+      ),
+    by = "customer_number"
+  )
+
+```
+
+
+```{r}
+customer_data
+```
+
+```{r}
+# Step 1: Create 'vol_range' column based on total_volume
+customer_data <- customer_data %>%
+  mutate(vol_range = case_when(
+    total_volume <= 149 ~ "0 - 149",
+    total_volume >= 150 & total_volume <= 299 ~ "150 - 299",
+    total_volume >= 300 & total_volume <= 449 ~ "300 - 449",
+    total_volume >= 450 & total_volume <= 599 ~ "450 - 599",
+    total_volume >= 600 & total_volume <= 749 ~ "600 - 749",
+    total_volume >= 750 & total_volume <= 899 ~ "750 - 899",
+    total_volume >= 900 & total_volume <= 1049 ~ "900 - 1049",
+    total_volume >= 1050 & total_volume <= 1199 ~ "1050 - 1199",
+    total_volume >= 1200 & total_volume <= 1349 ~ "1200 - 1349",
+    total_volume >= 1350 ~ "1350+"
+  ))
+
+# Step 2: Join with delivery cost data
+customer_data <- customer_data %>%
+  left_join(delivery_cost_data, 
+            by = c("cold_drink_channel" = "cold drink channel", 
+                   "vol_range" = "vol range"))
+
+# Quick check
+head(customer_data %>% select(customer_number, total_volume, vol_range, `median delivery cost`))
+
+```
+
+```{r}
+library(dplyr)
+library(knitr)
+
+# Add 'fountain_only' column
+customer_data <- customer_data %>%
+  mutate(fountain_only = local_market_partner == TRUE & co2_customer == FALSE)
+
+# Build Persona Summary Table
+persona_summary <- customer_data %>%
+  group_by(volume_tier) %>%
+  summarise(
+    n_customers = n(),
+    avg_volume = round(mean(total_volume, na.rm = TRUE), 1),
+    avg_transactions = round(mean(n_transactions, na.rm = TRUE), 1),
+    pct_local_market_partner = round(mean(local_market_partner, na.rm = TRUE) * 100, 1),
+    pct_fountain_only = round(mean(fountain_only, na.rm = TRUE) * 100, 1),
+    avg_onboarding_year = round(mean(lubridate::year(on_boarding_date), na.rm = TRUE)),
+    most_common_order_type = names(sort(table(most_common_order_type), decreasing = TRUE))[1],
+    most_common_frequent_order_type = names(sort(table(frequent_order_type), decreasing = TRUE))[1],
+    most_common_cold_drink_channel = names(sort(table(cold_drink_channel), decreasing = TRUE))[1],
+    most_common_trade_channel = names(sort(table(trade_channel), decreasing = TRUE))[1],
+    most_common_state = names(sort(table(state), decreasing = TRUE))[1],
+    median_delivery_cost = median(`median delivery cost`, na.rm = TRUE)
+  )
+
+persona_summary
+
+```
+
+```{r}
+# Filter High Volume customers and summarize by state
+high_volume_state <- customer_data %>%
+  filter(volume_tier == "High Volume") %>%
+  group_by(state) %>%
+  summarise(
+    n_customers = n(),
+    pct_customers = round(n() / nrow(filter(customer_data, volume_tier == "High Volume")) * 100, 1)
+  ) %>%
+  arrange(desc(n_customers))
+
+# View table
+kable(high_volume_state, caption = "High Volume Customers Distribution by State")
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(high_volume_state, aes(x = reorder(state, -n_customers), y = n_customers)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "High Volume Customers by State",
+       x = "State",
+       y = "Number of High Volume Customers") +
+  theme_minimal()
+
+```
+
+🎯 High Volume Customer Persona
+✅ Profile
+
+* Avg Volume: 2,083 gallons per year
+
+* Avg Transactions: 45.2 transactions per year
+
+* % Local Market Partner: 73.8%
+
+* % Fountain Only: 53.2%
+
+* Avg Onboarding Year: 2012
+
+* Most Common Order Type: MYCOKE LEGACY
+
+* Most Common Frequent Order Type: SALES REP
+
+* Most Common Cold Drink Channel: DINING
+
+* Most Common Trade Channel: FAST CASUAL DINING
+
+* Most Common State: MA (Massachusetts)
+
+* Median Delivery Cost: $1.08 per gallon
+
+```{r}
+library(dplyr)
+library(knitr)
+
+# Filter High Volume customers and summarize by city
+high_volume_city <- customer_data %>%
+  filter(volume_tier == "High Volume") %>%
+  group_by(city) %>%
+  summarise(
+    n_customers = n(),
+    pct_customers = round(n() / nrow(filter(customer_data, volume_tier == "High Volume")) * 100, 1)
+  ) %>%
+  arrange(desc(n_customers))
+
+# View table
+kable(high_volume_city, caption = "High Volume Customers Distribution by City")
+
+```
+
+
+```{r}
+library(ggplot2)
+
+# Take Top 10 Cities
+top10_cities <- high_volume_city %>%
+  slice_max(n_customers, n = 5)
+
+# Plot
+ggplot(top10_cities, aes(x = reorder(city, -n_customers), y = n_customers)) +
+  geom_bar(stat = "identity", fill = "darkorange") +
+  labs(title = "Top 5 Cities with High Volume Customers",
+       x = "City",
+       y = "Number of High Volume Customers") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+
+```{r}
+library(ggplot2)
+
+# Data for visualization
+high_volume_persona <- data.frame(
+  Characteristic = c("Avg Volume", "Avg Transactions", "% Local Market Partner", 
+                     "% Fountain Only", "Avg Onboarding Year", "Median Delivery Cost"),
+  Value = c(2083.5, 45.2, 73.8, 53.2, 2012, 1.085)
+)
+
+# Bar plot
+ggplot(high_volume_persona, aes(x = reorder(Characteristic, Value), y = Value)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = round(Value, 1)), vjust = -0.5, size = 4) +
+  labs(title = "High Volume Customer Persona Summary",
+       x = "Characteristic", y = "Value") +
+  theme_minimal() +
+  coord_flip()
+
+# Pie Chart: Local Market Partner vs Others
+local_market_data <- data.frame(
+  Category = c("Local Market Partner", "Others"),
+  Percentage = c(73.8, 26.2)
+)
+
+ggplot(local_market_data, aes(x = "", y = Percentage, fill = Category)) +
+  geom_col() +
+  coord_polar(theta = "y") +
+  labs(title = "Local Market Partner Share - High Volume Tier") +
+  theme_void() +
+  scale_fill_manual(values = c("orange", "lightblue"))
+
+# Pie Chart: Fountain Only vs Others
+fountain_data <- data.frame(
+  Category = c("Fountain Only", "Others"),
+  Percentage = c(53.2, 46.8)
+)
+
+ggplot(fountain_data, aes(x = "", y = Percentage, fill = Category)) +
+  geom_col() +
+  coord_polar(theta = "y") +
+  labs(title = "Fountain Only Share - High Volume Tier") +
+  theme_void() +
+  scale_fill_manual(values = c("green", "lightgray"))
+
+```
+
+**High Volume customers are mostly local market partners (74%) buying primarily fountain drinks (53%). They have been onboarding since 2012 on average, with a high number of transactions (45/year) and significant volume (2,083 gallons/year). Their preferred order type is MYCOKE LEGACY, and they are usually associated with Fast Casual Dining in the Dining cold drink channel, primarily located in Massachusetts. Their median delivery cost is relatively low at $1.08 per gallon.**
+
+
+# spotting potential movers
+
+How can Swire Coca-Cola use historical sales data or other customer characteristics to predict which ARTM customers have the potential to grow beyond the volume threshold annually?
+
+We analyzed customers' year-over-year volume growth to identify those who are currently below the threshold (Low/Medium Tier) but are exhibiting positive sales growth — the "Growth Ready" customers.
+
+## Step 1: Add Customer Segment
+
+We will segment customers into:
+
+* Local Market Partner - Fountain Only
+
+* All Customers (others)
+
+```{r}
+summary(customer_data)
+```
+
+```{r}
+# Merge
+customer_data <- customer_agg_clean %>%
+  left_join(customer_profile, by = "customer_number")
+
+# Create Segmentation
+customer_data <- customer_data %>%
+  mutate(
+    segment = case_when(
+      local_market_partner == TRUE & co2_customer == FALSE ~ "Local Market Partner - Fountain Only",
+      TRUE ~ "All Customers"
+    )
+  )
+
+# Check counts
+table(customer_data$segment)
+prop.table(table(customer_data$segment)) * 100
+
+```
+## Step 2: Segment Volume Tier by Segment
+```{r}
+#This will help us to compare potential across segments.
+
+# Summary
+library(dplyr)
+
+customer_data %>%
+  group_by(segment, volume_tier) %>%
+  summarise(
+    n_customers = n(),
+    avg_volume = mean(total_volume, na.rm = TRUE)
+  )
+
+```
+
+
+
+##  Step 3: Calculate Year-Over-Year Growth
+We calculate the growth percentage for each customer, comparing current year with previous year.
+
+```{r}
+# Calculate growth by customer
+customer_growth <- customer_agg_clean %>%
+  arrange(customer_number, year) %>%
+  group_by(customer_number) %>%
+  mutate(
+    previous_volume = lag(total_volume),
+    volume_growth = (total_volume - previous_volume) / previous_volume * 100
+  ) %>%
+  ungroup()
+
+# Merge growth back with customer data
+customer_data_growth <- customer_data %>%
+  left_join(customer_growth %>% select(customer_number, year, volume_growth), 
+            by = c("customer_number", "year"))
+
+```
+
+
+## Step 4: Flag Growth Ready Customers
+
+If a customer is Low or Medium Volume Tier and has positive growth → They are considered Growth Ready.
+
+```{r}
+customer_data_growth <- customer_data_growth %>%
+  mutate(
+    growth_ready = case_when(
+      volume_tier %in% c("Low Volume", "Medium Volume") & volume_growth > 0 ~ TRUE,
+      TRUE ~ FALSE
+    )
+  )
+
+# Check how many growth-ready customers you have
+table(customer_data_growth$growth_ready)
+
+```
+9,798 customers (17.8%) flagged as Growth Ready
+
+45,298 customers (82.2%) not growth ready
+
+These Growth-Ready customers are currently in Low or Medium Volume tiers but had positive growth year-over-year.
+
+## Step 5: Summary by Segment, Tier, and Growth
+
+```{r}
+# Summary table
+customer_data_growth %>%
+  group_by(segment, volume_tier, growth_ready) %>%
+  summarise(
+    n_customers = n(),
+    avg_growth = mean(volume_growth, na.rm = TRUE),
+    avg_volume = mean(total_volume, na.rm = TRUE)
+  )
+
+```
+*The Inf in growth rate happens when the customer had zero volume in the previous year and positive volume in the current year — meaning they started buying this year.
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(ggplot2)
+
+# ---- Step 6: Clean Compact Summary Table ----
+growth_summary <- customer_data_growth %>%
+  group_by(segment, volume_tier, growth_ready) %>%
+  summarise(
+    n_customers = n(),
+    avg_growth = mean(volume_growth, na.rm = TRUE),
+    avg_volume = mean(total_volume, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    names_from = growth_ready,
+    values_from = n_customers,
+    values_fill = 0,
+    names_prefix = "growth_ready_"
+  ) %>%
+  mutate(
+    total_customers = growth_ready_FALSE + growth_ready_TRUE,
+    pct_growth_ready = round((growth_ready_TRUE / total_customers) * 100, 1)
+  )
+
+# View table
+kable(growth_summary, caption = "Growth Ready Customers Summary by Segment and Volume Tier")
+
+# ---- Step 7: Visualization ----
+# Prepare data
+plot_data <- customer_data_growth %>%
+  group_by(segment, volume_tier, growth_ready) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(segment, volume_tier) %>%
+  mutate(pct = n / sum(n) * 100)
+
+# Plot
+ggplot(plot_data, aes(x = volume_tier, y = pct, fill = growth_ready)) +
+  geom_bar(stat = "identity", position = "stack", color = "black") +
+  facet_wrap(~ segment) +
+  labs(title = "Percentage of Growth Ready Customers by Segment and Volume Tier",
+       x = "Volume Tier",
+       y = "Percentage",
+       fill = "Growth Ready") +
+  theme_minimal() +
+  scale_fill_manual(values = c("TRUE" = "steelblue", "FALSE" = "gray80"))
+
+```
+
+## Spotting Potential Movers – Executive Summary
+
+Swire Coca-Cola can leverage historical sales data and customer characteristics to proactively identify which ARTM customers are likely to grow beyond the annual volume threshold.
+
+**Key Insights from the Analysis:**
+
+* 17.8% of customers in Low and Medium Volume tiers were flagged as "Growth Ready" — meaning they had positive year-over-year growth.
+
+- Among these, there is a clear pattern:
+
+* 100% of the "Growth Ready" customers had zero volume in the previous year and started buying in the current year (this is why their growth rate is marked as "Inf").
+
+* This group represents newly activated customers or previously inactive customers who re-engaged.
+
+**Volume Tier Impact:**
+
+* In the Low Volume Tier, ~17% of customers became Growth Ready.
+
+* In the Medium Volume Tier, this increases to ~25%, signaling higher momentum for customers approaching the threshold.
+
+**Segment Impact:**
+
+*Both Local Market Partners - Fountain Only and All Customers segments show similar patterns.
+
+* The majority of growth-ready customers are newly active in the year and previously inactive.
+
+**How Swire Coca-Cola Can Use This:**
+
+✅ Focus retention and growth programs on newly active customers (Inf growth rate). They represent clear potential as they just started engaging.
+
+✅ Monitor Volume Trajectory — customers in Medium Volume Tier with positive growth can be prioritized, as they are closer to crossing the threshold.
+
+✅ Develop a proactive outreach strategy to nurture these Growth Ready customers with personalized incentives, marketing campaigns, or delivery cost adjustments.
+
+```{r}
+colnames(delivery_cost_data)
+
+```
+
+
+```{r}
+# Check the column names in the dataset
+colnames(delivery_cost_data)
+
+# Clean up column names (e.g., remove extra spaces, convert to lower case)
+colnames(delivery_cost_data) <- gsub(" ", "_", tolower(colnames(delivery_cost_data)))
+
+# After cleaning, check the column names again
+colnames(delivery_cost_data)
+
+# Now perform the grouping and summarization
+channel_costs <- delivery_cost_data %>%
+  group_by(`cold_drink_channel`) %>%
+  summarize(total_cost = sum(median_delivery_cost, na.rm = TRUE))
+
+# Find top N Cold Drink Channels by delivery cost (e.g., top 5)
+top_channels <- channel_costs %>%
+  arrange(desc(total_cost)) %>%
+  slice_head(n = 5)
+
+# Print the top channels
+print
+
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Clean column names (if not already done)
+colnames(delivery_cost_data) <- gsub(" ", "_", tolower(colnames(delivery_cost_data)))
+
+# Summarize data by Cold Drink Channel
+channel_costs <- delivery_cost_data %>%
+  group_by(cold_drink_channel) %>%
+  summarize(total_cost = sum(median_delivery_cost, na.rm = TRUE))
+
+# Create a bar plot
+ggplot(channel_costs, aes(x = reorder(cold_drink_channel, total_cost), y = total_cost)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  theme_minimal() +
+  labs(title = "Total Delivery Cost by Cold Drink Channel",
+       x = "Cold Drink Channel",
+       y = "Total Delivery Cost") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+
+
+
+
+```{r}
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+
+# Manually create the data frame based on provided data
+high_volume_state <- data.frame(
+  state = c("MA", "KS", "KY", "MD", "LA"),
+  n_customers = c(3850, 2563, 2388, 1685, 158),
+  pct_customers = c(36.2, 24.1, 22.4, 15.8, 1.5),
+  median_delivery_cost = c(120, 95, 110, 105, 130)  # Example values, replace with actual median costs
+)
+
+# Plot Number of High Volume Customers by State with Smaller Labels
+ggplot(high_volume_state, aes(x = reorder(state, -n_customers), y = n_customers)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = n_customers), vjust = -0.3, nudge_y = 100, size = 3, fontface = "bold") +  # Reduced label size
+  labs(
+    title = "High Volume Customers by State",
+    x = "State",
+    y = "Number of High Volume Customers"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+# Load libraries
+library(dplyr)
+library(ggplot2)
+
+# Clean column names
+colnames(customer_profile) <- gsub(" ", "_", tolower(colnames(customer_profile)))
+colnames(delivery_cost_data) <- gsub(" ", "_", tolower(colnames(delivery_cost_data)))
+
+# Merge datasets
+merged_data <- customer_profile %>%
+  left_join(delivery_cost_data, by = "cold_drink_channel")
+
+# Extract first 2 digits of ZIP code
+merged_data$zip_prefix <- substr(merged_data$zip_code, 1, 2)
+
+# Define ZIP prefix to state mapping (for MA, KY, KS, MD, LA)
+zip_prefix_to_state <- c(
+  "01" = "MA", "02" = "MA", "03" = "MA",   # Massachusetts
+  "40" = "KY", "41" = "KY",                # Kentucky
+  "66" = "KS", "67" = "KS",                # Kansas
+  "20" = "MD", "21" = "MD",                # Maryland
+  "70" = "LA", "71" = "LA"                 # Louisiana
+)
+
+# Assign state based on ZIP prefix
+merged_data$state <- zip_prefix_to_state[merged_data$zip_prefix]
+
+# Filter only for top 5 high-volume states
+top_states <- c("MA", "KY", "KS", "MD", "LA")
+filtered_data <- merged_data %>%
+  filter(state %in% top_states)
+
+# Summarize total delivery cost by state
+state_costs <- filtered_data %>%
+  group_by(state) %>%
+  summarize(total_cost = sum(median_delivery_cost, na.rm = TRUE))
+
+# Plot
+ggplot(state_costs, aes(x = reorder(state, -total_cost), y = total_cost)) +
+  geom_bar(stat = "identity", fill = "red") +
+  labs(
+    title = "Total Delivery Cost for Top 5 High-Volume States",
+    x = "State",
+    y = "Total Delivery Cost ($)"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Sample delivery cost data
+delivery_cost <- data.frame(
+  State = c("MA", "KS", "KY", "MD", "LA"),
+  Median_Delivery_Cost = c(8.06, 4.17, 2.99, 2.52, 2.06)
+)
+
+# Plot
+ggplot(delivery_cost, aes(x = reorder(State, -Median_Delivery_Cost), y = Median_Delivery_Cost)) +
+  geom_bar(stat = "identity", fill = "red") +
+  geom_text(aes(label = paste0("$", Median_Delivery_Cost)), vjust = -0.5, fontface = "bold") +
+  labs(title = "Median Delivery Cost by State",
+       x = "State",
+       y = "Median Delivery Cost (Per Case)") +
+  theme_minimal()
+
+```
+```{r}
+# Assuming the 'Median_Delivery_Cost' column exists in the dataset
+# Subset the dataset to include only the top 5 states
+top_states <- c("MA", "KS", "KY", "MD", "LA")
+top_state_data <- delivery_cost[delivery_cost$State %in% top_states, ]
+
+# Sum the 'Median_Delivery_Cost' for each state
+state_total_cost <- aggregate(Median_Delivery_Cost ~ State, data = top_state_data, sum)
+
+# Display the sum of Median Delivery Cost for each state
+state_total_cost
+
+```
+
+
