@@ -1,4 +1,5 @@
 ## Delivery Cost Optimization – Case Competition Project
+[View my segmentation + delivery cost notebook](./segmentation_delivery_cost.Rmd)
 
 ### Project Summary & Business Objective
 
