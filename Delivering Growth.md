@@ -1,6 +1,8 @@
 ## Delivery Cost Optimization – Case Competition Project
 [View my segmentation + delivery cost notebook](./segmentation_delivery_cost.Rmd)
 
+[View Business Problem Document (PDF)](https://github.com/jocelynchang21/Capstone-Proejct/blob/main/business%20problem.pdf)
+
 ### Project Summary & Business Objective
 
 In this competition, our goal was to analyze delivery cost data and uncover actionable insights to support cost optimization and operational efficiency. The business challenge focused on the high variability in delivery expenses across product types, business segments, and volume ranges. The objective was to develop data-driven recommendations to reduce delivery costs while maintaining service levels and ensuring customer satisfaction.
