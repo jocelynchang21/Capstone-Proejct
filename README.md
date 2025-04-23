@@ -24,7 +24,7 @@
 - **Insight Communication:** Packaged technical findings into business-ready recommendations and presented them to stakeholders to support strategic delivery shifts.
   
 ## Business Value of the Solution
- [View our final presentation](./capstone final presentation.pdf)
+ [View our final presentation](https://github.com/jocelynchang21/Capstone-Proejct/blob/cf22ca707c8846a6670bc1b1f635d0ee8e3216ee/capstone%20final%20presentation.pdf)
 
 ### Our analysis empowers Swire Coca-Cola stakeholders to:
 - **Identify Cost Inefficiencies:** Pinpoint ZIP codes and segments with high delivery costs to target with optimization strategies.
