@@ -1,13 +1,11 @@
 ## Data-Driven Logistics Strategy for High-Growth Customer Segmentation for Swire Coca-Cola
-[View my segmentation + delivery cost notebook](./segmentation_delivery_cost.Rmd)
-
-[View Business Problem Document (PDF)](https://github.com/jocelynchang21/Capstone-Proejct/blob/main/business%20problem.pdf)
 
 ### Project Summary & Business Objective
 
 Swire Coca-Cola aimed to optimize its logistics operations by identifying high-growth potential customers currently using white truck (ARTM) delivery and transitioning them to red truck (direct delivery). This strategic initiative supports scalable business growth while enhancing delivery cost efficiency. Our objective was to leverage data science techniques to uncover patterns in delivery cost and customer behavior, guiding a targeted shift in delivery strategy.
 
 ## Group’s Solution to the Business Problem
+[View Business Problem Document (PDF)](https://github.com/jocelynchang21/Capstone-Proejct/blob/main/business%20problem.pdf)
 
 ### Our group applied a multi-phase analytical approach combining:
 
@@ -22,6 +20,7 @@ Swire Coca-Cola aimed to optimize its logistics operations by identifying high-g
 This integrated approach allowed us to predict high-growth customer potential with accuracy, generate region-specific recommendations, and develop a transition roadmap for ARTM customers.
 
 ## My Individual Contribution
+[View my segmentation + delivery cost notebook](./segmentation_delivery_cost.Rmd)
 
 ### As part of this project, I focused on:
 - **Data Cleaning & Feature Engineering:** Addressed missing values, standardized formats, and created derived variables, such as unit cost and customer tier.
